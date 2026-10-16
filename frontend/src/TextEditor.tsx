@@ -14,7 +14,7 @@ export default function TextEditor({
   const ref = useRef<HTMLTextAreaElement>(null),
     [language, setLanguage] = useState("python"),
     [preview, setPreview] = useState(false);
-  function insert() {
+  function insert() { 
     const el = ref.current;
     if (!el) return;
     const start = el.selectionStart,
@@ -24,7 +24,7 @@ export default function TextEditor({
     onChange(value.slice(0, start) + snippet + value.slice(end));
     setPreview(false);
     requestAnimationFrame(() => {
-      el.focus();
+      el.focus(); 
       el.setSelectionRange(
         start + 5 + language.length,
         start + 5 + language.length + selected.length,
