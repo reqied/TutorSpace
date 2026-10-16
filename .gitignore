@@ -1,0 +1,12 @@
+.env
+*.local
+**/node_modules/
+**/bin/
+**/obj/
+**/dist/
+.vs/
+.idea/
+backups/
+
+backend/appsettings.Local.json
+**/App_Data/

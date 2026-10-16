@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tutor_space
+      POSTGRES_USER: tutor
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run the initialization script first}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tutor -d tutor_space"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATA_DIRECTORY: /data
+      ASPNETCORE_ENVIRONMENT: ${APP_ENVIRONMENT:-Development}
+      ConnectionStrings__Default: Host=db;Port=5432;Database=tutor_space;Username=tutor;Password=${DB_PASSWORD}
+      TUTOR_EMAIL: ${TUTOR_EMAIL:?Set TUTOR_EMAIL in .env}
+      TUTOR_PASSWORD: ${TUTOR_PASSWORD:?Run initialization first}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8080}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      VK_BOT_TOKEN: ${VK_BOT_TOKEN:-}
+      Logging__LogLevel__System.Net.Http.HttpClient: Warning
+    volumes:
+      - app_data:/data
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:80"
+volumes:
+  postgres_data:
+  app_data:

@@ -1,0 +1,26 @@
+{
+  "name": "tutor-space-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "node ../tests/integration.mjs"
+  },
+  "dependencies": {
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "lucide-react": "1.31.0",
+    "katex": "0.16.22",
+    "@microsoft/signalr": "10.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/katex": "0.16.7",
+    "typescript": "5.9.3",
+    "vite": "8.0.13",
+    "@vitejs/plugin-react": "6.0.2"
+  }
+}

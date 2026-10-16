@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+const base=process.env.TEST_URL||'http://localhost:8080';
+function client(){let cookie='';return async(path,body,method=body===undefined?'GET':'POST')=>{const r=await fetch(base+'/api'+path,{method,headers:{Origin:new URL(base).origin,Cookie:cookie,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});if(r.headers.has('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];let value;try{value=await r.json()}catch{}return {status:r.status,value}}}
+const t=client(),a=client(),b=client(),suffix=Date.now();
+assert.equal((await t('/auth/login',{email:process.env.TUTOR_EMAIL,password:process.env.TUTOR_PASSWORD})).status,200);
+async function student(c,name){const email=`${name}-${suffix}@example.test`,password='Student_Test_2026!';const r=await t('/students',{name,email,password,grade:'10',telegramChatId:null,vkPeerId:null});assert.equal(r.status,200);assert.equal((await c('/auth/login',{email,password})).status,200);return r.value}
+const sa=await student(a,'v2-a'),sb=await student(b,'v2-b');
+const input={title:'Урок из нескольких заданий',section:'Информатика',kind:'Урок',content:'Теория: $x^2$\n```python\nprint(2+2)\n```',tasks:[{title:'Первое',content:'Сколько будет 2+2?',answer:'4',solution:'PRIVATE_SOLUTION_1',autoCheck:true},{title:'Код',content:'Напиши программу.\n```python\nprint("<script>")\n```',answer:'PRIVATE_MANUAL_ANSWER',solution:'PRIVATE_SOLUTION_2\n```python\nprint(4)\n```',autoCheck:false}]};
+const m=(await t('/materials',input)).value;assert.ok(m.id);
+let teacher=(await t('/materials')).value.find(x=>x.id===m.id);assert.equal(teacher.tasks.length,2);assert.equal(teacher.tasks[0].solution,'PRIVATE_SOLUTION_1');const [one,two]=teacher.tasks;
+assert.equal((await a('/materials')).value.some(x=>x.id===m.id),false);
+const l=(await t('/lessons',{studentId:sa.id,title:'Multi-task lesson',startsAt:'2027-01-01T15:00:00+05:00',minutes:60,price:2000,done:false,paid:false,materialId:m.id})).value;assert.equal(l.materialId,m.id);
+let visible=(await a('/materials')).value.find(x=>x.id===m.id);assert.ok(visible);assert.ok(visible.content.includes('```python'));assert.equal(visible.tasks[0].answer,null);assert.equal(visible.tasks[1].solution,null);assert.equal(JSON.stringify(visible).includes('PRIVATE_'),false);assert.equal((await b('/materials')).value.some(x=>x.id===m.id),false);
+const assign=(await t('/assignments',{studentId:sa.id,materialId:m.id,deadline:'2027-01-01T18:00:00+05:00'})).value;assert.ok(assign.id);
+assert.equal((await b(`/assignments/${assign.id}/tasks/${one.id}/submit`,{response:'4'})).status,403);
+let result=await a(`/assignments/${assign.id}/tasks/${one.id}/submit`,{response:'4'});assert.equal(result.status,200);assert.equal(result.value.status,'В работе');assert.equal(result.value.responses[0].status,'Верно');assert.equal(JSON.stringify(result.value).includes('PRIVATE_'),false);
+result=await a(`/assignments/${assign.id}/tasks/${two.id}/submit`,{response:'```python\nprint(4)\n```'});assert.equal(result.value.status,'На проверке');
+assert.equal((await a(`/assignments/${assign.id}/tasks/${two.id}/review`,{status:'Принято',feedback:'x'})).status,403);
+result=await t(`/assignments/${assign.id}/tasks/${two.id}/review`,{status:'Принято',feedback:'Верно оформлено'});assert.equal(result.value.status,'Принято');assert.equal(result.value.responses.length,2);
+assert.equal((await a(`/assignments/${assign.id}/submit`,{response:'legacy'})).status,400);
+const copied=(await t('/materials',{...input,title:'Другой материал',tasks:input.tasks.slice(0,1)})).value;const foreign=(await t('/materials')).value.find(x=>x.id===copied.id).tasks[0];
+assert.equal((await t('/materials/'+m.id,{...input,tasks:[foreign]},'PUT')).status,400);
+assert.equal((await a(`/assignments/${assign.id}/tasks/${foreign.id}/submit`,{response:'4'})).status,404);
+assert.equal((await t('/materials/'+m.id,{...input,tasks:[two,one]},'PUT')).status,200);teacher=(await t('/materials')).value.find(x=>x.id===m.id);assert.equal(teacher.tasks[0].id,two.id);assert.equal(teacher.tasks[1].id,one.id);
+assert.equal((await t('/materials/'+m.id,{...input,tasks:[one]},'PUT')).status,200);let kept=(await a('/assignments')).value.find(x=>x.id===assign.id);assert.equal(kept.responses.length,2);assert.ok(kept.responses.some(x=>x.taskId===two.id&&x.response.includes('print')));
+const deckBody={title:'Карточки Python',section:'Информатика',description:'Повторение',cards:[{front:'Как вывести число?',back:'```python\nprint(4)\n```'},{front:'$2+2$',back:'$4$'}]};
+assert.equal((await a('/decks',deckBody)).status,403);const d=(await t('/decks',deckBody)).value;assert.ok(d.id);assert.equal((await a('/decks')).value.some(x=>x.id===d.id),false);assert.equal((await t('/decks/'+d.id+'/assign',{studentId:sa.id})).status,200);assert.equal((await t('/decks/'+d.id+'/assign',{studentId:sa.id})).status,200);
+visible=(await a('/decks')).value.find(x=>x.id===d.id);assert.equal(visible.cards.length,2);assert.equal(visible.assignments.length,1);assert.equal((await b('/decks')).value.some(x=>x.id===d.id),false);
+const card=visible.cards[0];assert.equal((await b('/cards/'+card.id+'/review',{known:true})).status,403);assert.equal((await a('/cards/'+card.id+'/review',{known:true})).value.known,true);assert.equal((await a('/cards/'+card.id+'/review',{known:false})).value.reviews,2);
+const progress=(await t('/decks')).value.find(x=>x.id===d.id).progress;assert.equal(progress[0].studentId,sa.id);assert.equal(progress[0].known,false);
+assert.equal((await t('/decks/'+d.id,{...deckBody,cards:visible.cards.slice().reverse()},'PUT')).status,200);assert.equal((await a('/decks')).value.find(x=>x.id===d.id).cards[1].id,card.id);
+console.log('PASS v2: multi-task lessons, scheduled lesson access, per-task submissions/reviews, tutor-only answers/solutions, task ownership/order/archive, flashcard assignments and persistent isolated progress');

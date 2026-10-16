@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import Content from '../frontend/src/Content';
+const require=createRequire(new URL('../frontend/package.json',import.meta.url));
+const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const render=(text:string)=>renderToStaticMarkup(React.createElement(Content,{text}));
+const code=render('```python\nprint("<script>alert(1)</script>")\n$x$\n```');
+assert.ok(code.includes('<pre><code>'));assert.ok(code.includes('&lt;script&gt;'));assert.equal(code.includes('<script>'),false);assert.ok(code.includes('$x$'));assert.equal(code.includes('class="katex"'),false);
+const math=render('Реши $x^2$ и прочитай https://example.org');assert.ok(math.includes('katex'));assert.ok(math.includes('href="https://example.org"'));
+const inline=render('Вызови `print(4)`');assert.ok(inline.includes('inline-code'));
+console.log('PASS content: escaped code, preserved code text, math outside code, safe links and inline code');
